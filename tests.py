@@ -12,11 +12,9 @@ def test_ift6760example():
 
     discount = 0.9
     v_0 = torch.zeros(num_states)
-    finalv = value_iteration(v_0, p, r, discount)
-    # print(finalv)
-    # print([1/(1-discount)]*num_states)
+    vs = value_iteration(p, r, discount, v_0)
 
-    assert np.allclose(finalv, [1 / (1 - discount)] * num_states), "ift6760 value iteration example test fails"
+    assert np.allclose(vs[-1], [1 / (1 - discount)] * num_states), "ift6760 value iteration example test fails"
 
 
 def test_generate_mdp():
@@ -24,8 +22,8 @@ def test_generate_mdp():
     num_actions = 2
     p, r, discount = generate_mdp(num_states, num_actions)
     v_0 = torch.zeros(num_states)
-    finalv = value_iteration(v_0, p, r, discount)
-    assert not torch.isnan(finalv).any()
+    vs = value_iteration(p, r, discount, v_0)
+    assert not torch.isnan(vs).any()
 
 
 test_ift6760example()

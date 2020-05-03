@@ -27,13 +27,15 @@ def bellman_optimality_operator(v, P, R, discount):
     return newv
 
 
-def value_iteration(v0, p, r, discount, eps=1e-8):
+def value_iteration(p, r, discount, v0=None, eps=1e-8):
+    if v0 is None:
+        v0 = torch.zeros(r.shape[0])
     iter_diff = float("inf")
     v_prev = v0
+    vs = [v0]
     while iter_diff > eps:
         newv = bellman_optimality_operator(v_prev, p, r, discount)
+        vs += [newv]
         iter_diff = torch.norm(newv - v_prev)
-        # print("iter_diff ", iter_diff)
         v_prev = newv
-    return newv
-
+    return torch.stack(vs, dim=0)
