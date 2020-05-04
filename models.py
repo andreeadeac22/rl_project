@@ -4,6 +4,7 @@ import numpy as np
 
 cuda_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+
 # NN layers and models
 class GraphConv(nn.Module):
     '''
@@ -21,54 +22,36 @@ class GraphConv(nn.Module):
         self.fc = nn.Linear(in_features=in_features * n_relations, out_features=out_features)
         self.n_relations = n_relations
 
-    def chebyshev_basis(self, L, X, K):
-        if K > 1:
-            Xt = [X]
-            Xt.append(torch.bmm(L, X))  # B,N,F
-            for k in range(2, K):
-                Xt.append(2 * torch.bmm(L, Xt[k - 1]) - Xt[k - 2])  # B,N,F
-            Xt = torch.cat(Xt, dim=2)  # B,N,K,F
-            return Xt
-        else:
-            # GCN
-            assert K == 1, K
-            return torch.bmm(L, X)  # B,N,1,F
+    def chebyshev_basis(self, L, X):
+        # GCN
+        return torch.bmm(L, X)  # B,N,1,F
 
     def laplacian_batch(self, A):
+        print("A ", A.shape)
         batch, N = A.shape[:2]
-        if self.adj_sq:
-            A = torch.bmm(A, A)  # use A^2 to increase graph connectivity
         A_hat = A
-        if self.K < 2 or self.scale_identity:
-            I = torch.eye(N).unsqueeze(0).to(cuda_device)
-            if self.scale_identity:
-                I = 2 * I  # increase weight of self connections
-            if self.K < 2:
-                A_hat = A + I
         D_hat = (torch.sum(A_hat, 1) + 1e-5) ** (-0.5)
-        L = D_hat.view(batch, N, 1) * A_hat * D_hat.view(batch, 1, N)
+        L = D_hat.view(batch, N, N, 2) * A_hat * D_hat.view(batch, 1, N)
         return L
 
     def forward(self, data):
-        x, A, mask = data[:3]
+        x, A, discount = data[:3]
         # print('in', x.shape, torch.sum(torch.abs(torch.sum(x, 2)) > 0))
         if len(A.shape) == 3:
             A = A.unsqueeze(3)
         x_hat = []
 
         for rel in range(self.n_relations):
-            L = self.laplacian_batch(A[:, :, :, rel])
-            x_hat.append(self.chebyshev_basis(L, x, self.K))
+            print("A ", A.shape)  # b, a, s, s, 2
+            print(A[:, rel, :, :, :].shape)  # b, s, s, 2
+            L = self.laplacian_batch(A[:, rel, :, :, :])
+            print("L ", L.shape)
+            x_hat.append(self.chebyshev_basis(L, x))
         x = self.fc(torch.cat(x_hat, 2))
-
-        if len(mask.shape) == 2:
-            mask = mask.unsqueeze(2)
-
-        x = x * mask  # to make values of dummy nodes zeros again, otherwise the bias is added after applying self.fc which affects node embeddings in the following layers
 
         if self.activation is not None:
             x = self.activation(x)
-        return (x, A, mask)
+        return (x, A, discount)
 
 
 class GCN(nn.Module):
@@ -96,7 +79,62 @@ class GCN(nn.Module):
         self.fc = nn.Sequential(*fc)
 
     def forward(self, data):
-        x = self.gconv(data)[0]
-        x = torch.max(x, dim=1)[0].squeeze()  # max pooling over nodes (usually performs better than average)
+        x = self.gconv(data)
+        x = self.fc(x)
+        return x
+
+
+class MessagePassing(nn.Module):
+    def __init__(self,
+                 node_features,
+                 edge_features,
+                 out_features,
+                 activation):
+        super().__init__()
+        self.node_proj = nn.Sequential(
+            nn.Linear(node_features, out_features, bias=False))
+        self.edge_proj = nn.Linear(2*out_features + edge_features, out_features)
+        self.activation = activation
+
+    def compute_adj_mat(self, A):
+        batch, N = A.shape[:2]
+        I = torch.eye(N).unsqueeze(0).to(cuda_device)
+        return A + I
+
+    def forward(self, data):
+        x, adj = data
+        x = self.node_proj(x)
+        # a, s, out_features
+        num_states = x.shape[1]
+        x_i = x.unsqueeze(dim=2).repeat(1, 1, num_states, 1) # a, s, 1, out_features
+        x_j = x.unsqueeze(dim=1).repeat(1, num_states, 1, 1) #a, 1, s', out_features
+        messages = self.edge_proj(torch.cat((x_i, x_j, adj), dim=-1))
+        # if self.activation is not None:
+        #    messages = self.activation(messages)
+        neighb = torch.sum(messages, dim=-2)
+        new_x = neighb + x
+        return (new_x, adj)
+
+
+class MPNN(nn.Module):
+    def __init__(self,
+                 node_features,
+                 edge_features,
+                 out_features,
+                 filters=[64, 64, 64]):
+        super().__init__()
+        self.mps = nn.Sequential(*([
+            MessagePassing(node_features=node_features if layer == 0 else filters[layer - 1],
+                           edge_features=edge_features,
+                            out_features=f,
+                            activation=nn.ReLU(inplace=True)) for layer, f in enumerate(filters)]))
+        self.fc = nn.Linear(in_features=filters[-1], out_features=out_features)
+
+    def forward(self, data):
+        # node.shape: a, s, 2
+        # adj.shape: a, s, s, 2
+        x, adj = self.mps(data)
+
+        x, ind = torch.max(x, dim=0)
         x = self.fc(x)
         return x
