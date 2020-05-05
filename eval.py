@@ -39,13 +39,14 @@ def plot_test_losses():
 
         plt.figure(1)
         plt.yscale("log")
-        plt.plot(range(min(iteration_lengths)), losses_over_iter)
+        plt.plot(range(min(iteration_lengths)), losses_over_iter, label='|s|=' + str(num_states))
 
         plt.figure(2)
-        plt.plot(range(min(iteration_lengths)), accs_over_iter, label='Predicted')
-        plt.plot(range(min(iteration_lengths)), gt_accs_over_iter, '--', label='Ground-truth')
+        plt.plot(range(min(iteration_lengths)), accs_over_iter, label='Predicted, |s|=' + str(num_states))
+        plt.plot(range(min(iteration_lengths)), gt_accs_over_iter, '--', label='Ground-truth, |s|=' + str(num_states))
 
         plt.figure(1)
+        plt.legend()
         plt.savefig('loss' + str(num_states) + '.jpg')
 
         plt.figure(2)

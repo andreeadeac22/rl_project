@@ -59,6 +59,7 @@ def test(data):
     accs = []
     gt_accs = []
     losses = []
+    gt_losses = []
     for step in range(iteration_steps - 1):
         output = model((input_node_feat, adj_mat, adj_mask))
         values += output
@@ -70,8 +71,9 @@ def test(data):
                                      node_feat[step + 1, :, :, 1:2]), dim=-1)
 
         losses += [loss_fn(values, vs[-1]).item()]
+        gt_losses += [loss_fn(vs[step], vs[-1]).item()]
 
-        gt_policy = find_policy(policy_dict['p'], policy_dict['r'], policy_dict['discount'], policy_dict['gt_vs'][step])
+        gt_policy = find_policy(policy_dict['p'], policy_dict['r'], policy_dict['discount'], vs[step])
         gt_accs += [100. * torch.eq(gt_policy, policy_dict['policy']).sum() / len(output)]
         predicted_policy = find_policy(policy_dict['p'], policy_dict['r'], policy_dict['discount'], values.squeeze())
         accs += [100. * torch.eq(predicted_policy, policy_dict['policy']).sum() / len(output)]
@@ -81,7 +83,7 @@ def test(data):
         accs[-1],
         losses[-1],
         np.mean(np.array(losses))))
-    return losses[-1], accs[-1], losses, accs, gt_accs
+    return losses[-1], accs[-1], losses, accs, gt_losses, gt_accs
 
 
 parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
@@ -119,40 +121,52 @@ optimizer = optim.Adam(train_params, lr=args.lr)
 iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions=args.train_num_actions,
                                    epsilon=args.epsilon)
 train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
-
+""""
 for epoch in range(args.num_train_graphs):
     train(next(iter(train_loader)))
 
 torch.save(model.state_dict(), 'mpnn.pt')
+"""
+model.load_state_dict(torch.load('mpnn.pt'))
 
 import pickle
 
 num_states = [20, 50, 100]
-for states in num_states:
-    iterable_test_dataset = GraphData(num_states=states, num_actions=args.test_num_actions, epsilon=args.epsilon)
-    test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
+num_actions = [5, 10, 20]
 
-    test_last_losses = []
-    test_all_losses = []
-    test_last_accs = []
-    test_all_accs = []
-    all_gt_accs = []
-    for epoch in range(args.num_test_graphs):
-        last_loss, last_acc, losses, accs, gt_accs = test(next(iter(test_loader)))
-        test_last_losses += [last_loss]
-        test_last_accs += [last_acc]
-        test_all_losses += [losses]
-        test_all_accs += [accs]
-        all_gt_accs += [gt_accs]
-    print("States {}, actions {} \t Test last step loss mean {}, std {} ".format(states, args.test_num_actions,
-                                                                                 np.mean(np.array(test_last_losses)),
-                                                                                 np.std(np.array(test_last_losses))))
-    print("States {}, actions {} \t Test last step acc mean {}, std {} ".format(states, args.test_num_actions,
-                                                                                 np.mean(np.array(test_last_accs)),
-                                                                                 np.std(np.array(test_last_accs))))
-    results = {
-        'losses': test_all_losses,
-        'accs': test_all_accs,
-        'gt_accs': all_gt_accs
-    }
-    pickle.dump(results, open('results' + str(states) + '.p', 'wb'))
+for states in num_states:
+    for actions in num_actions:
+        args.test_num_actions = actions
+        iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon)
+        test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
+
+        test_last_losses = []
+        test_all_losses = []
+        test_last_accs = []
+        test_all_accs = []
+        all_gt_losses = []
+        all_gt_accs = []
+
+        for epoch in range(args.num_test_graphs):
+            last_loss, last_acc, losses, accs, gt_losses, gt_accs = test(next(iter(test_loader)))
+            test_last_losses += [last_loss]
+            test_last_accs += [last_acc]
+            test_all_losses += [losses]
+            test_all_accs += [accs]
+            all_gt_losses += [gt_losses]
+            all_gt_accs += [gt_accs]
+        print("States {}, actions {} \t Test last step loss mean {}, std {} ".format(states, actions,
+                                                                                     np.mean(
+                                                                                         np.array(test_last_losses)),
+                                                                                     np.std(
+                                                                                         np.array(test_last_losses))))
+        print("States {}, actions {} \t Test last step acc mean {}, std {} ".format(states, actions,
+                                                                                    np.mean(np.array(test_last_accs)),
+                                                                                    np.std(np.array(test_last_accs))))
+        results = {
+            'losses': test_all_losses,
+            'accs': test_all_accs,
+            'gt_losses':all_gt_losses,
+            'gt_accs': all_gt_accs
+        }
+        pickle.dump(results, open('results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
