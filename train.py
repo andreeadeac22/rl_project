@@ -71,7 +71,7 @@ parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
 parser.add_argument('--train_num_states', type=int, default=20, help='number of states')
 parser.add_argument('--train_num_actions', type=int, default=5, help='number of actions')
 
-parser.add_argument('--test_num_states', type=int, default=20, help='number of states')
+parser.add_argument('--test_num_states', type=int, default=50, help='number of states')
 parser.add_argument('--test_num_actions', type=int, default=5, help='number of actions')
 
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
