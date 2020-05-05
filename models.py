@@ -14,7 +14,8 @@ class MessagePassing(nn.Module):
         super().__init__()
         self.node_proj = nn.Sequential(
             nn.Linear(node_features, out_features, bias=False))
-        self.edge_proj = nn.Linear(2*out_features + edge_features, out_features)
+        self.edge_proj = nn.Linear(edge_features, out_features)
+        self.message_proj = nn.Linear(3*out_features, out_features)
         self.activation = activation
 
     def compute_adj_mat(self, A):
@@ -25,15 +26,18 @@ class MessagePassing(nn.Module):
     def forward(self, data):
         x, adj, adj_mask = data
         x = self.node_proj(x)
+        adj = self.edge_proj(adj)
         # a, s, out_features
         num_states = x.shape[1]
         x_i = x.unsqueeze(dim=2).repeat(1, 1, num_states, 1)  # a, s, 1, out_features
         x_j = x.unsqueeze(dim=1).repeat(1, num_states, 1, 1)  # a, 1, s', out_features
-        messages = self.edge_proj(torch.cat((x_i, x_j, adj), dim=-1))
+        messages = self.message_proj(torch.cat((x_i, x_j, adj), dim=-1))
         messages = messages * adj_mask
         if self.activation is not None:
             messages = self.activation(messages)
         neighb = torch.sum(messages, dim=-2)
+        #neighb, ind = torch.max(messages, dim=-2)
+        #neighb = torch.mean(messages, dim=-2)
         new_x = neighb + x
         return (new_x, adj, adj_mask)
 

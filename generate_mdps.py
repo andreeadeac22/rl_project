@@ -39,3 +39,15 @@ def value_iteration(p, r, discount, v0=None, eps=1e-8):
         iter_diff = torch.norm(newv - v_prev)
         v_prev = newv
     return torch.stack(vs, dim=0)
+
+def find_policy(p, r, discount, v):
+    max_a, argmax_a = torch.max(r + discount * torch.einsum('ijk,k->ji', p, v), dim=1)
+    return argmax_a
+
+"""
+p, r, discount = generate_mdp(3, 2)
+print("p ", p)
+print("r ", r)
+vs = value_iteration(p, r, discount)
+pol = find_policy(p, r, discount, vs[-1])
+"""

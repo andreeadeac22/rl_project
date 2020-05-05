@@ -1,7 +1,7 @@
 import torch
 import copy
 import numpy as np
-from generate_mdps import generate_mdp, value_iteration
+from generate_mdps import generate_mdp, value_iteration, find_policy
 
 
 class GraphData(torch.utils.data.IterableDataset):
@@ -39,7 +39,15 @@ class GraphData(torch.utils.data.IterableDataset):
         # adj_mat_r = adj_mat_r.unsqueeze(dim=-1)
         # adj_mat = torch.cat((adj_mat_p, adj_mat_r), dim=-1)
 
-        yield (node_feat, adj_mat, adj_mask, vs)
+        policy = find_policy(p, r, discount, vs[-1])
+        policy_dict = {
+            'p': p,
+            'r': r,
+            'discount': discount,
+            'policy': policy
+        }
+
+        yield (node_feat, adj_mat, adj_mask, vs, policy_dict)
 
     def __iter__(self):
         return self.build_graph()
