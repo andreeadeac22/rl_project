@@ -25,11 +25,13 @@ def train(data):
     # node_feat.shape: value_iter_steps, a, s, 2  (v, r)
     # adj_mat.shape: a, s, s, 2 (p, gamma)
     iteration_steps = node_feat.shape[0]
-
+    last_loss = 0
     for step in range(iteration_steps-1):
         optimizer.zero_grad()
         output = model((node_feat[step], adj_mat, adj_mask))
-        loss = loss_fn(output, vs[step + 1])
+        loss = loss_fn(output, vs[step + 1] - vs[step])
+        #print("vs delta, Loss ", vs[step+1]-vs[step], loss.item())
+
         #print("output ", output)
         #print("vs[step + 1] ", vs[step + 1])
         #print("loss ", loss)
@@ -39,9 +41,8 @@ def train(data):
         train_loss += loss.item() * len(output)
         n_samples += len(output)
 
-    print('Train Epoch: {}, samples: {} \tLoss: {:.6f} (avg: {:.6f}) \tsec/iter: {:.4f}'.format(
-        epoch + 1, n_samples, loss.item(), train_loss / n_samples,
-        time_iter))
+    print('Train Epoch: {}, samples: {} \t Last step loss {:.6f} (avg: {:.6f}) \tsec/iter: {:.4f}'.format(
+        epoch + 1, n_samples, loss.item(), train_loss / n_samples, time_iter))
 
 
 def test(data):
@@ -55,14 +56,21 @@ def test(data):
     # node_feat.shape: value_iter_steps, a, s, 2  (v, r)
     # adj_mat.shape: a, s, s, 2 (p, gamma)
     iteration_steps = node_feat.shape[0]
+    input_node_feat = node_feat[0]  # a,s,2
     for step in range(iteration_steps - 1):
-        output = model((node_feat[step], adj_mat, adj_mask))
-        loss = loss_fn(output, vs[step + 1])
-        test_loss += loss.item()
+        output = model((input_node_feat, adj_mat, adj_mask))
+        loss = loss_fn(output, vs[step + 1]-vs[step])
+        # output: s, 1 -> a,s,1
+        #print("vs delta, Loss ", vs[step+1]-vs[step], loss.item())
+        input_node_feat = torch.cat((output.unsqueeze(dim=0).repeat(args.test_num_actions, 1, 1) +  # a, s, 1
+                                     input_node_feat[:, :, 0:1],
+                                     node_feat[step+1, :, :, 1:2]), dim=-1)
+        test_loss += loss.item() * len(output)
         n_samples += len(output)
 
-    print('Test set (epoch {}): Average loss: {:.6f} \n'.format(
+    print('Test set (epoch {}): Last step loss {:.6f} , Average loss: {:.6f} \n'.format(
         epoch + 1,
+        loss.item(),
         test_loss / n_samples))
     return test_loss / n_samples
 
@@ -71,7 +79,7 @@ parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
 parser.add_argument('--train_num_states', type=int, default=20, help='number of states')
 parser.add_argument('--train_num_actions', type=int, default=5, help='number of actions')
 
-parser.add_argument('--test_num_states', type=int, default=100, help='number of states')
+parser.add_argument('--test_num_states', type=int, default=20, help='number of states')
 parser.add_argument('--test_num_actions', type=int, default=5, help='number of actions')
 
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
@@ -104,16 +112,23 @@ iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions
 train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
 
 
-iterable_test_dataset = GraphData(num_states=args.test_num_states, num_actions=args.test_num_actions, epsilon=args.epsilon)
-test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
+
 
 for epoch in range(args.num_train_graphs):
     train(next(iter(train_loader)))
 
-test_losses = []
-for epoch in range(args.num_test_graphs):
-    test_losses += [test(next(iter(test_loader)))]
-print("Test loss mean {}, std {} ".format(np.mean(np.array(test_losses)), np.std(np.array(test_losses))))
+
+
+num_states = [20, 50, 100]
+for states in num_states:
+    iterable_test_dataset = GraphData(num_states=states, num_actions=args.test_num_actions, epsilon=args.epsilon)
+    test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
+
+    test_losses = []
+    for epoch in range(args.num_test_graphs):
+        test_losses += [test(next(iter(test_loader)))]
+    print("States {}, actions {} \t Test loss mean {}, std {} ".format(states, args.test_num_actions,
+                                                np.mean(np.array(test_losses)), np.std(np.array(test_losses))))
 
 
 

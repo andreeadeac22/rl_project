@@ -58,5 +58,6 @@ class MPNN(nn.Module):
         x, adj, adj_mask = self.mps(data)
 
         x, ind = torch.max(x, dim=0)
+        #x = torch.sum(x, dim=0)
         x = self.fc(x)
         return x

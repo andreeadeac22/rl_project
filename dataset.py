@@ -19,6 +19,8 @@ class GraphData(torch.utils.data.IterableDataset):
         # r: s, a
         # discount: 1
         # vs: iter, s
+        np.set_printoptions(threshold=np.inf)
+        #print("VS ", vs.numpy())
         ones = torch.ones_like(p)
         zeros = torch.zeros_like(p)
         adj_mask = torch.where(p > 0, ones, zeros).unsqueeze(dim=-1)  # a, s, s', 1
