@@ -18,7 +18,7 @@ def generate_mdp(num_states, num_actions, discount=0.9):
         if not torch.isnan(p).any():
             return p, r, discount
         attempt_no += 1
-        print("Attempts required to generate non-NaN transition matrix ", attempt_no)
+        #print("Attempts required to generate non-NaN transition matrix ", attempt_no)
 
 
 def bellman_optimality_operator(v, P, R, discount):
