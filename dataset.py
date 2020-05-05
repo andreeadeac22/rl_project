@@ -44,7 +44,8 @@ class GraphData(torch.utils.data.IterableDataset):
             'p': p,
             'r': r,
             'discount': discount,
-            'policy': policy
+            'policy': policy,
+            'gt_vs': vs
         }
 
         yield (node_feat, adj_mat, adj_mask, vs, policy_dict)

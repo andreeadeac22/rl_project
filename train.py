@@ -57,6 +57,7 @@ def test(data):
 
     values = torch.zeros(node_feat.shape[2], 1)
     accs = []
+    gt_accs = []
     losses = []
     for step in range(iteration_steps - 1):
         output = model((input_node_feat, adj_mat, adj_mask))
@@ -70,6 +71,8 @@ def test(data):
 
         losses += [loss_fn(values, vs[-1]).item()]
 
+        gt_policy = find_policy(policy_dict['p'], policy_dict['r'], policy_dict['discount'], policy_dict['gt_vs'][step])
+        gt_accs += [100. * torch.eq(gt_policy, policy_dict['policy']).sum() / len(output)]
         predicted_policy = find_policy(policy_dict['p'], policy_dict['r'], policy_dict['discount'], values.squeeze())
         accs += [100. * torch.eq(predicted_policy, policy_dict['policy']).sum() / len(output)]
 
@@ -78,7 +81,7 @@ def test(data):
         accs[-1],
         losses[-1],
         np.mean(np.array(losses))))
-    return losses[-1], accs[-1], losses, accs
+    return losses[-1], accs[-1], losses, accs, gt_accs
 
 
 parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
@@ -133,12 +136,14 @@ for states in num_states:
     test_all_losses = []
     test_last_accs = []
     test_all_accs = []
+    all_gt_accs = []
     for epoch in range(args.num_test_graphs):
-        last_loss, last_acc, losses, accs = test(next(iter(test_loader)))
+        last_loss, last_acc, losses, accs, gt_accs = test(next(iter(test_loader)))
         test_last_losses += [last_loss]
         test_last_accs += [last_acc]
         test_all_losses += [losses]
         test_all_accs += [accs]
+        all_gt_accs += [gt_accs]
     print("States {}, actions {} \t Test last step loss mean {}, std {} ".format(states, args.test_num_actions,
                                                                                  np.mean(np.array(test_last_losses)),
                                                                                  np.std(np.array(test_last_losses))))
@@ -147,6 +152,7 @@ for states in num_states:
                                                                                  np.std(np.array(test_last_accs))))
     results = {
         'losses': test_all_losses,
-        'accs': test_all_accs
+        'accs': test_all_accs,
+        'gt_accs': all_gt_accs
     }
     pickle.dump(results, open('results' + str(states) + '.p', 'wb'))
