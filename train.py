@@ -94,8 +94,8 @@ def test(data):
 
 
 parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
-parser.add_argument('--num_train_graphs', type=int, default=2, help='Number of graphs used for training')
-parser.add_argument('--num_test_graphs', type=int, default=3, help='Number of graphs used for testing')
+parser.add_argument('--num_train_graphs', type=int, default=100, help='Number of graphs used for training')
+parser.add_argument('--num_test_graphs', type=int, default=40, help='Number of graphs used for testing')
 parser.add_argument('--train_num_states', type=int, default=20, help='number of states')
 parser.add_argument('--train_num_actions', type=int, default=5, help='number of actions')
 parser.add_argument('--test_num_states', type=int, default=[20, 50], help='number of test states')
@@ -105,6 +105,9 @@ parser.add_argument('--epsilon', type=float, default=1e-8, help='termination con
                                                                 'consecutive values)')
 
 parser.add_argument('--filters', type=int, default=[64], help='Hidden dim for node')
+parser.add_argument('--neighbour_state_aggr', type=str, default='sum')
+parser.add_argument('--state_residual_update', type=str, default='sum')
+parser.add_argument('--action_aggr', type=str, default='max')
 
 parser.add_argument('--patience', type=int, default=20)
 parser.add_argument('--lr', type=float, default=0.005, help='learning rate')
@@ -146,6 +149,9 @@ for key in sorted(argsdict):
 model = MPNN(node_features=2,
              edge_features=2,
              out_features=1,
+             neighbour_state_aggr=args.neighbour_state_aggr,
+             state_residual_update=args.state_residual_update,
+             action_aggr=args.action_aggr,
              filters=args.filters).to(args.device)
 
 exp_config_file.write('\nInitialize model')
@@ -192,12 +198,12 @@ for states in args.test_num_states:
             test_all_accs += [accs]
             all_gt_losses += [gt_losses]
             all_gt_accs += [gt_accs]
-        exp_config_file.write("States {}, actions {} \t Test last step loss mean {}, std {} ".format(states, actions,
+        exp_config_file.write("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
                                                                                      np.mean(
                                                                                          np.array(test_last_losses)),
                                                                                      np.std(
                                                                                          np.array(test_last_losses))))
-        exp_config_file.write("States {}, actions {} \t Test last step acc mean {}, std {} ".format(states, actions,
+        exp_config_file.write("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
                                                                                     np.mean(np.array(test_last_accs)),
                                                                                     np.std(np.array(test_last_accs))))
         results = {
@@ -207,3 +213,4 @@ for states in args.test_num_states:
             'gt_accs': all_gt_accs
         }
         pickle.dump(results, open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
+    exp_config_file.write('\n')
