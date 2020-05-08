@@ -14,7 +14,9 @@ class MessagePassing(nn.Module):
         super().__init__()
         self.node_proj = nn.Sequential(
             nn.Linear(node_features, out_features, bias=False))
-        self.edge_proj = nn.Linear(edge_features, out_features)
+        self.edge_proj1 = nn.Linear(edge_features, out_features)
+        #self.edge_proj2 = nn.Linear(out_features, out_features)
+        #self.relu = nn.ReLU()
         self.message_proj = nn.Linear(3*out_features, out_features)
         self.activation = activation
 
@@ -26,7 +28,9 @@ class MessagePassing(nn.Module):
     def forward(self, data):
         x, adj, adj_mask = data
         x = self.node_proj(x)
-        adj = self.edge_proj(adj)
+        adj = self.edge_proj1(adj)
+        #adj = self.relu(adj)
+        #adj = self.edge_proj2(adj)
         # a, s, out_features
         num_states = x.shape[1]
         x_i = x.unsqueeze(dim=2).repeat(1, 1, num_states, 1)  # a, s, 1, out_features

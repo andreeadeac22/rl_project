@@ -14,7 +14,7 @@ class GraphData(torch.utils.data.IterableDataset):
     def build_graph(self):
         p, r, discount = generate_mdp(num_states=self.num_states, num_actions=self.num_actions)
         vs = value_iteration(p=p, r=r, discount=discount, eps=self.eps)
-        print("Iterations ", vs.shape[0])
+        #print("Iterations ", vs.shape[0])
         # p: a, s, s'
         # r: s, a
         # discount: 1

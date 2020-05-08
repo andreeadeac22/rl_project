@@ -4,7 +4,7 @@ import torch
 def generate_mdp(num_states, num_actions, discount=0.9):
     # P: a, s, s'
     # R: s, a
-    #
+    # 
     attempt_no = 0
     while True:
         p = torch.rand(num_actions, num_states, num_states)
