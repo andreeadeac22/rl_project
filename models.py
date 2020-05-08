@@ -10,6 +10,7 @@ class MessagePassing(nn.Module):
                  node_features,
                  edge_features,
                  out_features,
+                 message_function='mpnn',
                  neighbour_state_aggr='sum',
                  state_residual_update='sum',
                  activation=None):
@@ -18,8 +19,14 @@ class MessagePassing(nn.Module):
             nn.Linear(node_features, out_features, bias=False))
         self.edge_proj1 = nn.Linear(edge_features, out_features)
         # self.edge_proj2 = nn.Linear(out_features, out_features)
-        # self.relu = nn.ReLU()
-        self.message_proj = nn.Linear(3 * out_features, out_features)
+        self.leakyrelu = nn.LeakyReLU()
+
+        self.message_function = message_function
+        if message_function == 'mpnn':
+            self.message_proj = nn.Linear(3 * out_features, out_features)
+        elif message_function == 'attention':
+            self.attn_coeff = nn.Linear(2*out_features, 1)
+            self.softmax = nn.Softmax()
         self.activation = activation
         self.neighbour_state_aggr = neighbour_state_aggr
         self.state_residual_update = state_residual_update
@@ -40,18 +47,28 @@ class MessagePassing(nn.Module):
         num_states = x.shape[1]
         x_i = x.unsqueeze(dim=2).repeat(1, 1, num_states, 1)  # a, s, 1, out_features
         x_j = x.unsqueeze(dim=1).repeat(1, num_states, 1, 1)  # a, 1, s', out_features
-        messages = self.message_proj(torch.cat((x_i, x_j, adj), dim=-1))
-        messages = messages * adj_mask
 
-        if self.activation is not None:
-            messages = self.activation(messages)
+        if self.message_function == 'mpnn':
+            messages = self.message_proj(torch.cat((x_i, x_j, adj), dim=-1))
+            messages = messages * adj_mask
 
-        if self.neighbour_state_aggr == 'sum':
-            neighb = torch.sum(messages, dim=-2)
-        elif self.neighbour_state_aggr == 'max':
-            neighb, ind = torch.max(messages, dim=-2)
-        elif self.neighbour_state_aggr == 'mean':
-            neighb = torch.mean(messages, dim=-2)
+            if self.activation is not None:
+                messages = self.activation(messages)
+
+            if self.neighbour_state_aggr == 'sum':
+                neighb = torch.sum(messages, dim=-2)
+            elif self.neighbour_state_aggr == 'max':
+                neighb, ind = torch.max(messages, dim=-2)
+            elif self.neighbour_state_aggr == 'mean':
+                neighb = torch.mean(messages, dim=-2)
+
+        elif self.message_function == 'attention':
+            a = self.attn_coeff(torch.cat((x_i, x_j), dim=-1))
+            a = self.leakyrelu(a)
+            a = (adj_mask - 1.)*1e9 + a
+            alpha = self.softmax(a).squeeze(dim=-1)
+            print("alpha ", alpha)
+            neighb = torch.bmm(alpha, x)
 
         if self.state_residual_update == 'sum':
             new_x = neighb + x
@@ -68,6 +85,7 @@ class MPNN(nn.Module):
                  node_features,
                  edge_features,
                  out_features,
+                 message_function='mpnn',
                  neighbour_state_aggr='sum',
                  state_residual_update='sum',
                  action_aggr='max',
@@ -75,8 +93,9 @@ class MPNN(nn.Module):
         super().__init__()
         self.mps = nn.Sequential(*([
             MessagePassing(node_features=node_features if layer == 0 else filters[layer - 1],
-                           edge_features=edge_features,
+                           edge_features=edge_features if layer == 0 else filters[layer-1],
                            out_features=f,
+                           message_function=message_function,
                            neighbour_state_aggr=neighbour_state_aggr,
                            state_residual_update=state_residual_update,
                            activation=nn.ReLU(inplace=True)) for layer, f in enumerate(filters)]))

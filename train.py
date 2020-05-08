@@ -104,7 +104,8 @@ parser.add_argument('--test_num_actions', type=int, default=[5, 10], help='numbe
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
                                                                 'consecutive values)')
 
-parser.add_argument('--filters', type=int, default=[64], help='Hidden dim for node')
+parser.add_argument('--filters', type=str, default='64', help='Hidden dim for node')
+parser.add_argument('--message_function', type=str, default='MPNN')
 parser.add_argument('--neighbour_state_aggr', type=str, default='sum')
 parser.add_argument('--state_residual_update', type=str, default='sum')
 parser.add_argument('--action_aggr', type=str, default='max')
@@ -126,6 +127,7 @@ def set_seed(seed):
 
 
 args = parser.parse_args()
+args.filters = list(map(int, args.filters.split(',')))
 args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Increment a counter so that previous results with the same args will not
@@ -149,6 +151,7 @@ for key in sorted(argsdict):
 model = MPNN(node_features=2,
              edge_features=2,
              out_features=1,
+             message_function=args.message_function,
              neighbour_state_aggr=args.neighbour_state_aggr,
              state_residual_update=args.state_residual_update,
              action_aggr=args.action_aggr,
@@ -206,6 +209,7 @@ for states in args.test_num_states:
         exp_config_file.write("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
                                                                                     np.mean(np.array(test_last_accs)),
                                                                                     np.std(np.array(test_last_accs))))
+        exp_config_file.write('\n')
         results = {
             'losses': test_all_losses,
             'accs': test_all_accs,
@@ -213,4 +217,3 @@ for states in args.test_num_states:
             'gt_accs': all_gt_accs
         }
         pickle.dump(results, open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
-    exp_config_file.write('\n')
