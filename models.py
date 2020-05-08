@@ -27,10 +27,13 @@ class MessagePassing(nn.Module):
         elif message_function == 'attention':
             self.attn_coeff = nn.Linear(2*out_features, 1)
             self.softmax = nn.Softmax()
+
         self.activation = activation
         self.neighbour_state_aggr = neighbour_state_aggr
         self.state_residual_update = state_residual_update
-        self.predict_fc = nn.Linear(2*out_features, out_features)
+
+        if self.state_residual_update == 'concat':
+            self.predict_fc = nn.Linear(2*out_features, out_features)
 
     def compute_adj_mat(self, A):
         batch, N = A.shape[:2]

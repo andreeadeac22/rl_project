@@ -1,17 +1,27 @@
 import torch
+from graph_types import *
 
 
-def generate_mdp(num_states, num_actions, discount=0.9):
+def generate_mdp(num_states, num_actions, discount=0.9, graph_type='random'):
     # P: a, s, s'
     # R: s, a
     # 
     attempt_no = 0
     while True:
-        p = torch.rand(num_actions, num_states, num_states)
-        r = torch.rand(num_states, num_actions) * (-1. - 1.) + 1.  # between -1, 1
+        if graph_type == 'random':
+            p = torch.rand(num_actions, num_states, num_states)
+            mask = torch.randint(0, 2, (num_actions, num_states, num_states))
+            p = p * mask
+        elif graph_type == 'grid':
+            p_a = []
+            for i in range(num_actions):
+                grid_adj = nx.adjacency_matrix(grid(num_states)).todense()
+                p_a += [torch.Tensor(grid_adj)]
+            p = torch.stack(p_a, dim=0)
+        else:
+            raise NotImplementedError
 
-        mask = torch.randint(0, 2, (num_actions, num_states, num_states))
-        p = p * mask
+        r = torch.rand(num_states, num_actions) * (-1. - 1.) + 1.  # between -1, 1
         as_sum = torch.sum(p, dim=-1, keepdim=True)
         p = p / as_sum
 
@@ -44,10 +54,10 @@ def find_policy(p, r, discount, v):
     max_a, argmax_a = torch.max(r + discount * torch.einsum('ijk,k->ji', p, v), dim=1)
     return argmax_a
 
-"""
-p, r, discount = generate_mdp(3, 2)
+""""
+p, r, discount = generate_mdp(20, 2, graph_type='grid')
 print("p ", p)
 print("r ", r)
 vs = value_iteration(p, r, discount)
 pol = find_policy(p, r, discount, vs[-1])
-"""
+"""""

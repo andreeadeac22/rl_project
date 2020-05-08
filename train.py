@@ -101,11 +101,13 @@ parser.add_argument('--train_num_actions', type=int, default=5, help='number of 
 parser.add_argument('--test_num_states', type=int, default=[20, 50], help='number of test states')
 parser.add_argument('--test_num_actions', type=int, default=[5, 10], help='number of test actions')
 
+parser.add_argument('--graph_type', type=str, default='random')
+
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
                                                                 'consecutive values)')
 
 parser.add_argument('--filters', type=str, default='64', help='Hidden dim for node')
-parser.add_argument('--message_function', type=str, default='MPNN')
+parser.add_argument('--message_function', type=str, default='mpnn')
 parser.add_argument('--neighbour_state_aggr', type=str, default='sum')
 parser.add_argument('--state_residual_update', type=str, default='sum')
 parser.add_argument('--action_aggr', type=str, default='max')
@@ -113,7 +115,7 @@ parser.add_argument('--action_aggr', type=str, default='max')
 parser.add_argument('--patience', type=int, default=20)
 parser.add_argument('--lr', type=float, default=0.005, help='learning rate')
 
-parser.add_argument('--load_model', action='store_true')
+parser.add_argument('--load_model', type=str, default=None)
 parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--save_dir', type=str, default='results')
@@ -164,14 +166,13 @@ print('N trainable parameters:', np.sum([p.numel() for p in train_params]), file
 optimizer = optim.Adam(train_params, lr=args.lr)
 
 set_seed(args.seed)
-iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions=args.train_num_actions,
-                                   epsilon=args.epsilon)
-train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
 
-
-if args.load_model:
-    model.load_state_dict(torch.load(args.save_dir + '/mpnn.pt'))
+if args.load_model is not None:
+    model.load_state_dict(torch.load(args.load_model + '/mpnn.pt'))
 else:
+    iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions=args.train_num_actions,
+                                   epsilon=args.epsilon)
+    train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
     for epoch in range(args.num_train_graphs):
         train(next(iter(train_loader)))
 
@@ -183,7 +184,8 @@ import pickle
 for states in args.test_num_states:
     for actions in args.test_num_actions:
         torch.cuda.empty_cache()
-        iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon)
+        iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon,
+                                          graph_type=args.graph_type)
         test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
 
         test_last_losses = []
