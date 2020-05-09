@@ -6,7 +6,6 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.nn.parameter import Parameter
-from torchsummary import summary
 
 from models import *
 from dataset import *
@@ -97,8 +96,7 @@ parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
 parser.add_argument('--num_train_graphs', type=int, default=100, help='Number of graphs used for training')
 parser.add_argument('--num_test_graphs', type=int, default=40, help='Number of graphs used for testing')
 
-parser.add_argument('--test_num_states', type=int, default=[20, 50, 100], help='number of test states')
-parser.add_argument('--test_num_actions', type=int, default=[5, 10, 20], help='number of test actions')
+parser.add_argument('--test_state_action_tuple', type=int, default=[(20, 5), (50, 10), (100, 20)])
 
 parser.add_argument('--test_graph_type', type=str, default=None)
 
@@ -178,48 +176,48 @@ else:
 
 import pickle
 
-for states in args.test_num_states:
-    for actions in args.test_num_actions:
-        if states == 100 or (states == 50 and actions == 20):
-            args.device = torch.device("cpu")
-            model.to(args.device)
+for sa_pair in args.test_state_action_tuple:
+    states, actions = sa_pair
+    if states == 100 or (states == 50 and actions == 20):
+        args.device = torch.device("cpu")
+        model.to(args.device)
 
-        torch.cuda.empty_cache()
-        iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon,
-                                          graph_type=args.test_graph_type, seed=args.seed)
-        test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
+    torch.cuda.empty_cache()
+    iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon,
+                                      graph_type=args.test_graph_type, seed=args.seed)
+    test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
 
-        test_last_losses = []
-        test_all_losses = []
-        test_last_accs = []
-        test_all_accs = []
-        all_gt_losses = []
-        all_gt_accs = []
+    test_last_losses = []
+    test_all_losses = []
+    test_last_accs = []
+    test_all_accs = []
+    all_gt_losses = []
+    all_gt_accs = []
 
-        for epoch in range(args.num_test_graphs):
-            last_loss, last_acc, losses, accs, gt_losses, gt_accs = test(next(iter(test_loader)))
-            test_last_losses += [last_loss]
-            test_last_accs += [last_acc]
-            test_all_losses += [losses]
-            test_all_accs += [accs]
-            all_gt_losses += [gt_losses]
-            all_gt_accs += [gt_accs]
-        print("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
-                                                                                       np.mean(
-                                                                                           np.array(test_last_losses)),
-                                                                                       np.std(
-                                                                                           np.array(test_last_losses))),
-              file=exp_config_file)
-        print("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
-                                                                                      np.mean(np.array(test_last_accs)),
-                                                                                      np.std(np.array(test_last_accs))),
-              file=exp_config_file)
-        print('\n', file=exp_config_file)
-        results = {
-            'losses': test_all_losses,
-            'accs': test_all_accs,
-            'gt_losses': all_gt_losses,
-            'gt_accs': all_gt_accs
-        }
-        pickle.dump(results,
-                    open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
+    for epoch in range(args.num_test_graphs):
+        last_loss, last_acc, losses, accs, gt_losses, gt_accs = test(next(iter(test_loader)))
+        test_last_losses += [last_loss]
+        test_last_accs += [last_acc]
+        test_all_losses += [losses]
+        test_all_accs += [accs]
+        all_gt_losses += [gt_losses]
+        all_gt_accs += [gt_accs]
+    print("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
+                                                                                   np.mean(
+                                                                                       np.array(test_last_losses)),
+                                                                                   np.std(
+                                                                                       np.array(test_last_losses))),
+          file=exp_config_file)
+    print("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
+                                                                                  np.mean(np.array(test_last_accs)),
+                                                                                  np.std(np.array(test_last_accs))),
+          file=exp_config_file)
+    print('\n', file=exp_config_file)
+    results = {
+        'losses': test_all_losses,
+        'accs': test_all_accs,
+        'gt_losses': all_gt_losses,
+        'gt_accs': all_gt_accs
+    }
+    pickle.dump(results,
+                open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
