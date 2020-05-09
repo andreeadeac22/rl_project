@@ -7,15 +7,16 @@ from generate_mdps import generate_mdp, value_iteration, find_policy
 class GraphData(torch.utils.data.IterableDataset):
     def __init__(self,
                  num_states, num_actions, epsilon,
-                 graph_type):
+                 graph_type='random', seed=None):
         self.num_states = num_states
         self.num_actions = num_actions
         self.eps = epsilon
         self.graph_type = graph_type
+        self.seed = seed
 
     def build_graph(self):
         p, r, discount = generate_mdp(num_states=self.num_states, num_actions=self.num_actions,
-                                      graph_type=self.graph_type)
+                                      graph_type=self.graph_type, seed=self.seed)
         vs = value_iteration(p=p, r=r, discount=discount, eps=self.eps)
         #print("Iterations ", vs.shape[0])
         # p: a, s, s'

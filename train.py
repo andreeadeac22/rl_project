@@ -94,22 +94,23 @@ def test(data):
 
 
 parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
-parser.add_argument('--num_train_graphs', type=int, default=100, help='Number of graphs used for training')
-parser.add_argument('--num_test_graphs', type=int, default=40, help='Number of graphs used for testing')
+parser.add_argument('--num_train_graphs', type=int, default=2, help='Number of graphs used for training')
+parser.add_argument('--num_test_graphs', type=int, default=3, help='Number of graphs used for testing')
 parser.add_argument('--train_num_states', type=int, default=20, help='number of states')
 parser.add_argument('--train_num_actions', type=int, default=5, help='number of actions')
-parser.add_argument('--test_num_states', type=int, default=[20, 50], help='number of test states')
-parser.add_argument('--test_num_actions', type=int, default=[5, 10], help='number of test actions')
+parser.add_argument('--test_num_states', type=int, default=[20, 50, 100], help='number of test states')
+parser.add_argument('--test_num_actions', type=int, default=[5, 10, 20], help='number of test actions')
 
-parser.add_argument('--graph_type', type=str, default='random')
+parser.add_argument('--train_graph_type', type=str, default='erdos')
+parser.add_argument('--test_graph_type', type=str, default=None)
 
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
                                                                 'consecutive values)')
 
-parser.add_argument('--filters', type=str, default='64', help='Hidden dim for node')
-parser.add_argument('--message_function', type=str, default='mpnn')
-parser.add_argument('--neighbour_state_aggr', type=str, default='sum')
-parser.add_argument('--state_residual_update', type=str, default='sum')
+parser.add_argument('--filters', type=str, default=None, help='Hidden dim for node')
+parser.add_argument('--message_function', type=str, default=None)
+parser.add_argument('--neighbour_state_aggr', type=str, default=None)
+parser.add_argument('--state_residual_update', type=str, default=None)
 parser.add_argument('--action_aggr', type=str, default='max')
 
 parser.add_argument('--patience', type=int, default=20)
@@ -119,6 +120,7 @@ parser.add_argument('--load_model', type=str, default=None)
 parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
 parser.add_argument('--save_dir', type=str, default='results')
+parser.add_argument('--on_cpu', action='store_true')
 
 def set_seed(seed):
     # random.seed(seed)
@@ -129,12 +131,17 @@ def set_seed(seed):
 
 
 args = parser.parse_args()
-args.filters = list(map(int, args.filters.split(',')))
-args.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if args.on_cpu:
+    args.save_dir = args.save_dir + 'cpu_'
 
-# Increment a counter so that previous results with the same args will not
-# be overwritten. Comment out the next four lines if you only want to keep
-# the most recent results.
+if args.
+args.save_dir = args.save_dir + args.train_graph_type + '_' + args.test_graph_type + '_' + args.message_function + \
+                '_neighbaggr_' + args.neighbour_state_aggr + '_filters_' + args.filters + \
+                '_stateupd_' + args.state_residual_update
+
+args.filters = list(map(int, args.filters.split(',')))
+args.device = torch.device("cuda" if not args.on_cpu and torch.cuda.is_available() else "cpu")
+
 i = 0
 while os.path.exists(args.save_dir + "_" + str(i)):
     i += 1
@@ -148,7 +155,7 @@ argsdict = args.__dict__
 argsdict['save_dir'] = args.save_dir
 exp_config_file = open(os.path.join(args.save_dir, 'exp_config.txt'), 'w')
 for key in sorted(argsdict):
-    exp_config_file.write(key+'    '+str(argsdict[key])+'\n')
+    print(key+'    '+str(argsdict[key])+'\n', file=exp_config_file)
 
 model = MPNN(node_features=2,
              edge_features=2,
@@ -159,7 +166,7 @@ model = MPNN(node_features=2,
              action_aggr=args.action_aggr,
              filters=args.filters).to(args.device)
 
-exp_config_file.write('\nInitialize model')
+print('\nInitialize model', file=exp_config_file)
 print(model, file=exp_config_file)
 train_params = list(filter(lambda p: p.requires_grad, model.parameters()))
 print('N trainable parameters:', np.sum([p.numel() for p in train_params]), file=exp_config_file)
@@ -171,7 +178,7 @@ if args.load_model is not None:
     model.load_state_dict(torch.load(args.load_model + '/mpnn.pt'))
 else:
     iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions=args.train_num_actions,
-                                   epsilon=args.epsilon)
+                                   epsilon=args.epsilon, graph_type=args.train_graph_type, seed=args.seed)
     train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
     for epoch in range(args.num_train_graphs):
         train(next(iter(train_loader)))
@@ -183,9 +190,13 @@ import pickle
 
 for states in args.test_num_states:
     for actions in args.test_num_actions:
+        if states == 100 or (states==50 and actions==20):
+            args.device = torch.device("cpu")
+            model.to(args.device)
+
         torch.cuda.empty_cache()
         iterable_test_dataset = GraphData(num_states=states, num_actions=actions, epsilon=args.epsilon,
-                                          graph_type=args.graph_type)
+                                          graph_type=args.test_graph_type, seed=args.seed)
         test_loader = torch.utils.data.DataLoader(iterable_test_dataset, batch_size=None)
 
         test_last_losses = []
@@ -203,15 +214,17 @@ for states in args.test_num_states:
             test_all_accs += [accs]
             all_gt_losses += [gt_losses]
             all_gt_accs += [gt_accs]
-        exp_config_file.write("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
+        print("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
                                                                                      np.mean(
                                                                                          np.array(test_last_losses)),
                                                                                      np.std(
-                                                                                         np.array(test_last_losses))))
-        exp_config_file.write("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
+                                                                                         np.array(test_last_losses))),
+                    file=exp_config_file)
+        print("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
                                                                                     np.mean(np.array(test_last_accs)),
-                                                                                    np.std(np.array(test_last_accs))))
-        exp_config_file.write('\n')
+                                                                                    np.std(np.array(test_last_accs))),
+              file=exp_config_file)
+        print('\n', file=exp_config_file)
         results = {
             'losses': test_all_losses,
             'accs': test_all_accs,
