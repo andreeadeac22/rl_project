@@ -10,9 +10,7 @@ class MessagePassing(nn.Module):
                  hidden_dim,
                  message_function=None,
                  message_function_depth=None,
-                 neighbour_state_aggr=None,
-                 state_residual_update='sum',
-                 activation=None):
+                 neighbour_state_aggr=None):
         super().__init__()
         self.node_proj = nn.Sequential(
             nn.Linear(node_features, hidden_dim, bias=False))
@@ -23,21 +21,15 @@ class MessagePassing(nn.Module):
 
         if message_function == 'mpnn':
             self.message_proj1 = nn.Linear(3 * hidden_dim, hidden_dim)
+            self.relu = nn.ReLU()
             if message_function_depth == 2:
-                self.relu = nn.ReLU()
                 self.message_proj2 = nn.Linear(hidden_dim, hidden_dim)
 
         elif message_function == 'attention':
             self.attn_coeff = nn.Linear(2 * hidden_dim, 1)
             self.leakyrelu = nn.LeakyReLU()
             self.softmax = nn.Softmax(dim=1)
-
-        self.activation = activation
         self.neighbour_state_aggr = neighbour_state_aggr
-        self.state_residual_update = state_residual_update
-
-        if self.state_residual_update == 'concat':
-            self.predict_fc = nn.Linear(2 * hidden_dim, hidden_dim)
 
     def forward(self, data):
         x, adj, adj_mask = data
@@ -55,9 +47,7 @@ class MessagePassing(nn.Module):
                 messages = self.message_proj2(messages)
 
             messages = messages * adj_mask
-
-            if self.activation is not None:
-                messages = self.activation(messages)
+            messages = self.relu(messages)
 
             if self.neighbour_state_aggr == 'sum':
                 neighb = torch.sum(messages, dim=-2)
@@ -77,15 +67,7 @@ class MessagePassing(nn.Module):
         else:
             raise NotImplementedError
 
-        if self.state_residual_update == 'sum':
-            new_x = neighb + x
-        elif self.state_residual_update == 'concat':
-            new_x = self.predict_fc(torch.cat((neighb, x), dim=-1))
-        elif self.state_residual_update == 'neighb':
-            new_x = neighb
-        else:
-            raise NotImplementedError
-
+        new_x = neighb + x
         return (new_x, adj, adj_mask)
 
 
@@ -97,32 +79,20 @@ class MPNN(nn.Module):
                  out_features=None,
                  message_function=None,
                  message_function_depth=None,
-                 neighbour_state_aggr=None,
-                 state_residual_update='sum',
-                 action_aggr='max'):
+                 neighbour_state_aggr=None):
         super().__init__()
         self.mps = MessagePassing(node_features=node_features,
                                   edge_features=edge_features,
                                   hidden_dim=hidden_dim,
                                   message_function=message_function,
                                   message_function_depth=message_function_depth,
-                                  neighbour_state_aggr=neighbour_state_aggr,
-                                  state_residual_update=state_residual_update,
-                                  activation=nn.ReLU(inplace=True))
+                                  neighbour_state_aggr=neighbour_state_aggr)
         self.fc = nn.Linear(in_features=hidden_dim, out_features=out_features)
-        self.action_aggr = action_aggr
 
     def forward(self, data):
         # node.shape: a, s, 2
         # adj.shape: a, s, s, 2
         x, adj, adj_mask = self.mps(data)
-        if self.action_aggr == 'max':
-            x, ind = torch.max(x, dim=0)
-        elif self.action_aggr == 'sum':
-            x = torch.sum(x, dim=0)
-        elif self.action_aggr == 'mean':
-            x = torch.mean(x, dim=0)
-        else:
-            raise NotImplementedError
+        x, ind = torch.max(x, dim=0)
         x = self.fc(x)
         return x

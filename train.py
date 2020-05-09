@@ -94,24 +94,21 @@ def test(data):
 
 
 parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
-parser.add_argument('--num_train_graphs', type=int, default=2, help='Number of graphs used for training')
-parser.add_argument('--num_test_graphs', type=int, default=3, help='Number of graphs used for testing')
-parser.add_argument('--train_num_states', type=int, default=20, help='number of states')
-parser.add_argument('--train_num_actions', type=int, default=5, help='number of actions')
+parser.add_argument('--num_train_graphs', type=int, default=100, help='Number of graphs used for training')
+parser.add_argument('--num_test_graphs', type=int, default=40, help='Number of graphs used for testing')
+
 parser.add_argument('--test_num_states', type=int, default=[20, 50, 100], help='number of test states')
 parser.add_argument('--test_num_actions', type=int, default=[5, 10, 20], help='number of test actions')
 
-parser.add_argument('--train_graph_type', type=str, default='erdos')
 parser.add_argument('--test_graph_type', type=str, default=None)
 
 parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
                                                                 'consecutive values)')
 
-parser.add_argument('--filters', type=str, default=None, help='Hidden dim for node')
+parser.add_argument('--hidden_dim', type=int, default=None, help='Hidden dim for node/edge')
 parser.add_argument('--message_function', type=str, default=None)
+parser.add_argument('--message_function_depth', type=int, default=None)
 parser.add_argument('--neighbour_state_aggr', type=str, default=None)
-parser.add_argument('--state_residual_update', type=str, default=None)
-parser.add_argument('--action_aggr', type=str, default='max')
 
 parser.add_argument('--patience', type=int, default=20)
 parser.add_argument('--lr', type=float, default=0.005, help='learning rate')
@@ -122,8 +119,8 @@ parser.add_argument('--seed', type=int, default=1111,
 parser.add_argument('--save_dir', type=str, default='results')
 parser.add_argument('--on_cpu', action='store_true')
 
+
 def set_seed(seed):
-    # random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
@@ -133,13 +130,9 @@ def set_seed(seed):
 args = parser.parse_args()
 if args.on_cpu:
     args.save_dir = args.save_dir + 'cpu_'
-
-if args.
-args.save_dir = args.save_dir + args.train_graph_type + '_' + args.test_graph_type + '_' + args.message_function + \
-                '_neighbaggr_' + args.neighbour_state_aggr + '_filters_' + args.filters + \
-                '_stateupd_' + args.state_residual_update
-
-args.filters = list(map(int, args.filters.split(',')))
+print(args)
+args.save_dir = args.save_dir + args.test_graph_type + '_' + args.message_function + str(args.message_function_depth) +\
+                '_neighbaggr_' + args.neighbour_state_aggr + '_hidden_' + str(args.hidden_dim)
 args.device = torch.device("cuda" if not args.on_cpu and torch.cuda.is_available() else "cpu")
 
 i = 0
@@ -150,21 +143,20 @@ args.save_dir = args.save_dir + "_" + str(i)
 # Creates an experimental directory and dumps all the args to a text file
 os.makedirs(args.save_dir, exist_ok=True)
 
-print("\nPutting log in %s"%args.save_dir)
+print("\nPutting log in %s" % args.save_dir)
 argsdict = args.__dict__
 argsdict['save_dir'] = args.save_dir
 exp_config_file = open(os.path.join(args.save_dir, 'exp_config.txt'), 'w')
 for key in sorted(argsdict):
-    print(key+'    '+str(argsdict[key])+'\n', file=exp_config_file)
+    print(key + '    ' + str(argsdict[key]) + '\n', file=exp_config_file)
 
 model = MPNN(node_features=2,
              edge_features=2,
+             hidden_dim=args.hidden_dim,
              out_features=1,
              message_function=args.message_function,
-             neighbour_state_aggr=args.neighbour_state_aggr,
-             state_residual_update=args.state_residual_update,
-             action_aggr=args.action_aggr,
-             filters=args.filters).to(args.device)
+             message_function_depth=args.message_function_depth,
+             neighbour_state_aggr=args.neighbour_state_aggr).to(args.device)
 
 print('\nInitialize model', file=exp_config_file)
 print(model, file=exp_config_file)
@@ -177,20 +169,18 @@ set_seed(args.seed)
 if args.load_model is not None:
     model.load_state_dict(torch.load(args.load_model + '/mpnn.pt'))
 else:
-    iterable_train_dataset = GraphData(num_states=args.train_num_states, num_actions=args.train_num_actions,
-                                   epsilon=args.epsilon, graph_type=args.train_graph_type, seed=args.seed)
+    iterable_train_dataset = GraphData(num_states=20, num_actions=5,
+                                       epsilon=args.epsilon, graph_type='erdos', seed=args.seed)
     train_loader = torch.utils.data.DataLoader(iterable_train_dataset, batch_size=None)
     for epoch in range(args.num_train_graphs):
         train(next(iter(train_loader)))
-
     torch.save(model.state_dict(), args.save_dir + '/mpnn.pt')
-
 
 import pickle
 
 for states in args.test_num_states:
     for actions in args.test_num_actions:
-        if states == 100 or (states==50 and actions==20):
+        if states == 100 or (states == 50 and actions == 20):
             args.device = torch.device("cpu")
             model.to(args.device)
 
@@ -215,20 +205,21 @@ for states in args.test_num_states:
             all_gt_losses += [gt_losses]
             all_gt_accs += [gt_accs]
         print("States {}, actions {} \t Test last step loss mean {}, std {} \n".format(states, actions,
-                                                                                     np.mean(
-                                                                                         np.array(test_last_losses)),
-                                                                                     np.std(
-                                                                                         np.array(test_last_losses))),
-                    file=exp_config_file)
+                                                                                       np.mean(
+                                                                                           np.array(test_last_losses)),
+                                                                                       np.std(
+                                                                                           np.array(test_last_losses))),
+              file=exp_config_file)
         print("States {}, actions {} \t Test last step acc mean {}, std {} \n".format(states, actions,
-                                                                                    np.mean(np.array(test_last_accs)),
-                                                                                    np.std(np.array(test_last_accs))),
+                                                                                      np.mean(np.array(test_last_accs)),
+                                                                                      np.std(np.array(test_last_accs))),
               file=exp_config_file)
         print('\n', file=exp_config_file)
         results = {
             'losses': test_all_losses,
             'accs': test_all_accs,
-            'gt_losses':all_gt_losses,
+            'gt_losses': all_gt_losses,
             'gt_accs': all_gt_accs
         }
-        pickle.dump(results, open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
+        pickle.dump(results,
+                    open(args.save_dir + '/results_states_' + str(states) + '_actions_' + str(actions) + '.p', 'wb'))
