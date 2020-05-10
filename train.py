@@ -68,7 +68,7 @@ def test(data):
     gt_accs = []
     losses = []
     gt_losses = []
-    for step in range(iteration_steps - 1):
+    for step in range(iteration_steps-1):
         output = model((input_node_feat, adj_mat, adj_mask))
         values += output
 
@@ -100,7 +100,7 @@ parser.add_argument('--test_state_action_tuple', type=int, default=[(20, 5), (50
 
 parser.add_argument('--test_graph_type', type=str, default=None)
 
-parser.add_argument('--epsilon', type=float, default=1e-8, help='termination condition (difference between two '
+parser.add_argument('--epsilon', type=float, default=1e-4, help='termination condition (difference between two '
                                                                 'consecutive values)')
 
 parser.add_argument('--hidden_dim', type=int, default=None, help='Hidden dim for node/edge')

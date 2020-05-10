@@ -23,7 +23,11 @@ def build_mask_given_graph_type(num_actions, graph_type_fn, num_states, seed=Non
 def generate_mdp(num_states, num_actions, discount=0.9, graph_type='random', seed=1111):
     # P: a, s, s'
     # R: s, a
-    # 
+    #
+    if graph_type == 'maze':
+        p, r = process()
+        return p, r, discount
+
     attempt_no = 0
     p = torch.rand(num_actions, num_states, num_states)
 

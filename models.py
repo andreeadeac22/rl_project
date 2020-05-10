@@ -50,11 +50,11 @@ class MessagePassing(nn.Module):
             messages = self.relu(messages)
 
             if self.neighbour_state_aggr == 'sum':
-                neighb = torch.sum(messages, dim=-2)
+                neighb = torch.sum(messages, dim=-3)
             elif self.neighbour_state_aggr == 'max':
-                neighb, ind = torch.max(messages, dim=-2)
+                neighb, ind = torch.max(messages, dim=-3)
             elif self.neighbour_state_aggr == 'mean':
-                neighb = torch.mean(messages, dim=-2)
+                neighb = torch.mean(messages, dim=-3)
             else:
                 raise NotImplementedError
 

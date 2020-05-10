@@ -1,5 +1,6 @@
 import networkx as nx
 import numpy as np
+import torch
 import math
 
 
@@ -85,3 +86,78 @@ def lobster(N, seed):
     for i in range(F, N):
         G.add_edge(i, np.random.randint(low=B, high=F))
     return G
+
+
+def process(file='gridworld_8x8.npz', train=False):
+    with np.load(file, mmap_mode='r') as f:
+        if train:
+            images = f['arr_0']
+        else:
+            images = f['arr_4']
+    images = images.astype(np.float32)
+
+    nb_images = images.shape[0]
+    nb_actions = 8
+    nb_states = 64
+
+    dx = [1, 0, -1, 0, 1, 1, -1, -1]
+    dy = [0, 1, 0, -1, 1, -1, 1, -1]
+    r = [-0.1, -0.1, -0.1, -0.1, -0.1414, -0.1414, -0.1414, -0.1414]
+
+    #Ps = []
+    #Rs = []
+
+    # Print number of samples
+    """
+    if train:
+        print("Number of Train Samples: {0}".format(images.shape[0]))
+    else:
+        print("Number of Test Samples: {0}".format(images.shape[0]))
+    """
+    img_index = np.random.randint(images.shape[0])
+
+    #for img in indices:
+    grid = images[img_index, 0]
+    reward = images[img_index, 1] / 10.0
+
+    ind = []
+    rev_map = {}
+
+    for x in range(grid.shape[0]):
+        for y in range(grid.shape[1]):
+            if grid[x, y] == 0.0:
+                rev_map[(x, y)] = len(ind)
+                ind.append((x, y))
+
+    nb_states = len(ind)
+
+    P = torch.zeros((nb_actions, nb_states, nb_states))
+    R = torch.zeros((nb_states, nb_actions))
+
+    for s, (x, y) in enumerate(ind):
+        for act in range(nb_actions):
+            if reward[x, y] > 0.0:
+                P[act][s][s] = 1.0
+            else:
+                next_x = x + dx[act]
+                next_y = y + dy[act]
+                if (next_x, next_y) not in rev_map:
+                    next_x = x
+                    next_y = y
+                next_r = r[act] + reward[next_x, next_y]
+                s_prime = rev_map[(next_x, next_y)]
+                P[act][s][s_prime] = 1.0
+                # train on similar R distributions?!
+                # R[s][act] = next_r * 2.5
+
+    R = torch.rand(nb_states, nb_actions) * (-1. - 1.) + 1.
+
+    #Ps.append(P)
+    #Rs.append(R)
+    return P, R
+
+"""
+Ps, Rs = process(file='gridworld_28x28.npz', train=False)
+lengths = [p.shape[1] for p in Ps]
+print(min(lengths), max(lengths))
+"""
