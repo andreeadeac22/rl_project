@@ -3,10 +3,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def plot_test_losses():
-    num_actions = 20
-    for num_states in [20,50,100]:
-        states = pickle.load(open("results_states_" + str(num_states) + "_actions_" + str(num_actions) + ".p", 'rb'))
+def plot_test_losses(dir=''):
+    num_states = 100
+    idx = 0
+    for num_actions in [5,10,20]:
+        states = pickle.load(open(dir + "results_states_" + str(num_states) + "_actions_" + str(num_actions) + ".p", 'rb'))
         losses, accs, gt_losses, gt_accs = states['losses'], states['accs'], states['gt_losses'], states['gt_accs']
         iteration_lengths = [len(graph_losses) for graph_losses in losses]
         print("Minimum ", min(iteration_lengths))
@@ -35,26 +36,26 @@ def plot_test_losses():
         plt.figure(1)
         plt.xlabel('iteration step')
         plt.ylabel('loss')
-        plt.title('Loss over iteration steps, |A|=' + str(num_actions))
+        plt.title('Loss over iteration steps, |S|=' + str(num_states))
 
         plt.figure(2)
         plt.xlabel('iteration step')
         plt.ylabel('policy accuracy')
-        plt.title('Policy accuracy over iteration steps, |A|=' + str(num_actions))
+        plt.title('Policy accuracy over iteration steps, |S|=' + str(num_states))
 
         plt.figure(1)
         plt.yscale("log")
-        plt.plot(range(min(iteration_lengths)), losses_over_iter, label='Predicted, |S|=' + str(num_states))
+        plt.plot(range(min(iteration_lengths)), losses_over_iter, color='C' + str(idx), label='Predicted, |A|=' + str(num_actions))
         plt.fill_between(range(min(iteration_lengths)), losses_over_iter - std_losses_over_iter,
-                         losses_over_iter + std_losses_over_iter, alpha=0.2)
-        plt.plot(range(min(iteration_lengths)), gt_losses_over_iter, '--', label='Ground-truth, |S|=' + str(num_states))
+                         losses_over_iter + std_losses_over_iter, color='C' + str(idx), alpha=0.2)
+        plt.plot(range(min(iteration_lengths)), gt_losses_over_iter, '--', label='Ground-truth, |A|=' + str(num_actions))
 
 
         plt.figure(2)
-        plt.plot(range(min(iteration_lengths)), accs_over_iter, label='Predicted, |S|=' + str(num_states))
+        plt.plot(range(min(iteration_lengths)), accs_over_iter, color='C' + str(idx), label='Predicted, |A|=' + str(num_actions))
         plt.fill_between(range(min(iteration_lengths)), accs_over_iter - std_accs_over_iter,
-                         accs_over_iter + std_accs_over_iter, alpha=0.2)
-        plt.plot(range(min(iteration_lengths)), gt_accs_over_iter, '--', label='Ground-truth, |S|=' + str(num_states))
+                         accs_over_iter + std_accs_over_iter, color='C' + str(idx), alpha=0.2)
+        plt.plot(range(min(iteration_lengths)), gt_accs_over_iter, '--', label='Ground-truth, |A|=' + str(num_actions))
 
         plt.figure(1)
         plt.legend()
@@ -62,11 +63,12 @@ def plot_test_losses():
 
         plt.figure(2)
         plt.legend()
+        idx +=1
 
     plt.figure(1)
-    plt.savefig('loss_states_' + str(num_states) + '_actions_' + str(num_actions) + '.jpg')
+    plt.savefig(dir + 'loss_states_' + str(num_states) + '_actions_' + str(num_actions) + '.jpg')
 
     plt.figure(2)
-    plt.savefig('acc_states_' + str(num_states) + '_actions_' + str(num_actions) + '.jpg')
+    plt.savefig(dir + 'acc_states_' + str(num_states) + '_actions_' + str(num_actions) + '.jpg')
 
-plot_test_losses()
+plot_test_losses(dir='resultserdos_mpnn1_neighbaggr_sum_hidden_32_1/')

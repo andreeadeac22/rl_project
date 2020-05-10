@@ -1,0 +1,100 @@
+device    cuda
+
+epsilon    0.0001
+
+hidden_dim    32
+
+load_model    None
+
+lr    0.005
+
+message_function    mpnn
+
+message_function_depth    1
+
+neighbour_state_aggr    sum
+
+num_test_graphs    40
+
+num_train_graphs    100
+
+on_cpu    False
+
+patience    20
+
+save_dir    resultserdos_mpnn1_neighbaggr_sum_hidden_32_1
+
+seed    1111
+
+test_graph_type    erdos
+
+test_state_action_tuple    [(20, 5), (20, 10), (20, 20), (50, 5), (50, 10), (50, 20), (100, 5), (100, 10), (100, 20)]
+
+
+Initialize model
+MPNN(
+  (mps): MessagePassing(
+    (node_proj): Sequential(
+      (0): Linear(in_features=2, out_features=32, bias=False)
+    )
+    (edge_proj): Linear(in_features=2, out_features=32, bias=True)
+    (message_proj1): Linear(in_features=96, out_features=32, bias=True)
+    (relu): ReLU()
+  )
+  (fc): Linear(in_features=32, out_features=1, bias=True)
+)
+N trainable parameters: 3297
+States 20, actions 5 	 Test last step loss mean 0.4597178239258938, std 0.7102596391254986 
+
+States 20, actions 5 	 Test last step acc mean 97.875, std 3.3330729007720947 
+
+
+
+States 20, actions 10 	 Test last step loss mean 2.3280735060572626, std 0.9022337282953377 
+
+States 20, actions 10 	 Test last step acc mean 96.5, std 5.612485885620117 
+
+
+
+States 20, actions 20 	 Test last step loss mean 5.233416891098022, std 0.7349954535979153 
+
+States 20, actions 20 	 Test last step acc mean 98.125, std 3.4798526763916016 
+
+
+
+States 50, actions 5 	 Test last step loss mean 0.1306846007471904, std 0.16280742906161522 
+
+States 50, actions 5 	 Test last step acc mean 99.25, std 1.0665364265441895 
+
+
+
+States 50, actions 10 	 Test last step loss mean 2.2364955961704256, std 0.5450451244496267 
+
+States 50, actions 10 	 Test last step acc mean 99.0999984741211, std 1.1789826154708862 
+
+
+
+States 50, actions 20 	 Test last step loss mean 5.1376598417758945, std 0.5043480290937533 
+
+States 50, actions 20 	 Test last step acc mean 98.5999984741211, std 1.685230016708374 
+
+
+
+States 100, actions 5 	 Test last step loss mean 0.07006028962205164, std 0.07278450770683166 
+
+States 100, actions 5 	 Test last step acc mean 99.44999694824219, std 0.5454356074333191 
+
+
+
+States 100, actions 10 	 Test last step loss mean 2.311971774697304, std 0.433815998022995 
+
+States 100, actions 10 	 Test last step acc mean 99.44999694824219, std 0.7053368091583252 
+
+
+
+States 100, actions 20 	 Test last step loss mean 5.119868814945221, std 0.36324333928394276 
+
+States 100, actions 20 	 Test last step acc mean 99.25, std 0.829156219959259 
+
+
+

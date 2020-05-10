@@ -96,7 +96,9 @@ parser = argparse.ArgumentParser(description='Graph Convolutional Networks')
 parser.add_argument('--num_train_graphs', type=int, default=100, help='Number of graphs used for training')
 parser.add_argument('--num_test_graphs', type=int, default=40, help='Number of graphs used for testing')
 
-parser.add_argument('--test_state_action_tuple', type=int, default=[(20, 5), (50, 10), (100, 20)])
+parser.add_argument('--test_state_action_tuple', type=int, default=[(20, 5), (20, 10), (20, 20),
+                                                                    (50, 5), (50, 10), (50, 20),
+                                                                    (100, 5), (100, 10), (100, 20)])
 
 parser.add_argument('--test_graph_type', type=str, default=None)
 
